@@ -1,8 +1,8 @@
 import random as rd
 import matplotlib.pyplot as plt
 
-from .logView import writeLog as log
 from django.template import loader
+from logView import writeLog as log
 from django.shortcuts import render
 from django.http import HttpResponse
 from io import BytesIO
@@ -22,7 +22,7 @@ def stock(request):
 
     buf = BytesIO()
     plt.savefig(buf, format='png')
-    # log('Hi~~')
+    log('Hi~~')
     buf.seek(0)
 
     return HttpResponse(buf.read(), content_type='image/png')
