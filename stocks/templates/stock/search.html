@@ -1,0 +1,19 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Page</title>
+</head>
+<body>
+    <h1>Search Page</h1>
+    <p>Welcome to the search page!</p>
+    <form id="searchForm" method="post" action="/stocks/search">
+        {% csrf_token %}
+        <div>
+            <label for="searchTxt">종목 : <input type="text" id="searchTxt" name="searchTxt"></label>
+            <label for="standardPrice">구매가격(평단가) : <input type="text" id="standardPrice" name="standardPrice"></label>
+            <button>검색</button>
+        </div>
+    </form>
+</body>
+</html>

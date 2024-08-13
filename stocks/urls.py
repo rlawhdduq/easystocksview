@@ -4,5 +4,5 @@ from .view import stockView
 
 urlpatterns = [
     path('', views.index, name='index'),
-    path('view', stockView.stock, name='stock')
+    path('search', stockView.divMethod, name='search'),
 ]
