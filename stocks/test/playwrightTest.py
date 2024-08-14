@@ -77,7 +77,7 @@ def test_has_title(page: Page):
     #     text = link.get_text()
     #     log(f"Link text: {text}, URL: {href}")
     return
-@pytest.fixture
+@pytest.fixture # pyTest용 객체
 def page():
     with sync_playwright() as p:
         # 브라우저를 headless 모드로 실행

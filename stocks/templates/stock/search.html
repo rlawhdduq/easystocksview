@@ -3,17 +3,44 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Search Page</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
     <h1>Search Page</h1>
     <p>Welcome to the search page!</p>
-    <form id="searchForm" method="post" action="/stocks/search">
+    <form id="searchForm" method="post">
         {% csrf_token %}
         <div>
             <label for="searchTxt">종목 : <input type="text" id="searchTxt" name="searchTxt"></label>
             <label for="standardPrice">구매가격(평단가) : <input type="text" id="standardPrice" name="standardPrice"></label>
-            <button>검색</button>
+            <button type="button" id="searchBtn">검색</button>
         </div>
     </form>
+    <div>
+        <img id="stockImg" src="" style="display:none;" alt="stockImg">
+        <span id="invaildData" style="display:none; color:red">데이터가 존재하지 않습니다.</span>
+    </div>
 </body>
+<script>
+    $("#searchBtn").click(function(){
+        $.ajax({
+            url: "{% url 'search' %}",
+            type: "POST",
+            data: $("#searchForm").serialize(),
+            success:function(rslt){
+                console.log(rslt)
+                if(rslt.resData){
+                    $('#stockImg').attr('src', 'data:image/png;base64,' + rslt.resData);
+                    $('#stockImg').show();
+                    $("#invaildData").hide()
+                }
+                else
+                {
+                    $('#stockImg').hide();
+                    $("#invaildData").show()
+                }
+            }
+        });
+    })
+</script>
 </html>

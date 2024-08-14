@@ -2,14 +2,13 @@ import sys
 import os
 import matplotlib.pyplot as plt
 import time
-import pytest
 import pandas
-import matplotlib.pyplot as plt
 import matplotlib
+import base64
 
-from matplotlib import font_manager
 
 from django.http import HttpResponse
+from django.http import JsonResponse
 from io import BytesIO
 from playwright.sync_api import Page, expect, sync_playwright
 from bs4 import BeautifulSoup as bs
@@ -30,43 +29,37 @@ def divMethod(request):
     if request.method == "GET":
         return searchTemplate(request)
     elif request.method == "POST":
+        log(request.POST)
         return getStockInfo(request)
     else: # 추후 Put, Delete 등 추가 된다면 분기처리 추가
         return
 def searchTemplate(request):
     return render(request, 'stock/search.html')
 
-# page 객체 설정
-@pytest.fixture
-def page():
-    with sync_playwright() as p:
-        # 브라우저를 headless 모드로 실행
-        browser = p.chromium.launch()  # 백단실행
-        # browser = p.chromium.launch(headless=False)  # UI를 볼 수 있도록 설정
-        context = browser.new_context()
-        page = context.new_page()
-        yield page
-        browser.close()
 # request
 #   searchTxt       검색 종목명
 #   standardPrice   구매가격(평단가)
 def getStockInfo(request):
     global searchTxt 
     searchTxt = request.POST.get("searchTxt")
-    stockDate, stockPrice = getScraping() # 스크래핑 데이터 호출
-     
+    stockDate, stockPrice, stockHiPrice, stockLoPrice, stockStPrice, stockResult = getScraping() # 스크래핑 데이터 호출
     resBody = {"resCode":"N", "resData":""}
+
     if stockDate or stockPrice:
         standardPrice = request.POST.get('standardPrice')
-        resBody["resData"] = drawScapringData(stockDate=stockDate, stockPrice=stockPrice, standardPrice=standardPrice)
-        resBody["resMsg"]  = "Y"
+        resBody = drawScapringData(stockDate=stockDate, stockPrice=stockPrice, stockStPrice=stockStPrice, stockHiPrice=stockHiPrice, stockLoPrice=stockLoPrice, standardPrice=standardPrice, stockResult=stockResult)
+    else:
+        resBody = JsonResponse(resBody)
     return resBody
 
 def getScraping():
+    log("getScraping")
     with sync_playwright() as p:
+        stockDate, stockPrice, stockHiPrice, stockLoPrice, stockStPrice, stockResult = [], [], [], [], [], []
         # 브라우저를 headless 모드로 실행
         # browser = p.chromium.launch()  # 백단실행
-        browser = p.chromium.launch(headless=False)  # UI를 볼 수 있도록 설정
+        # browser = p.chromium.launch(headless=True)  # headless=True : 백그라운드 실행, headless=False : 포어그라운드 실행(UI보임)
+        browser = p.chromium.launch(headless=False)  # headless=True : 백그라운드 실행, headless=False : 포어그라운드 실행(UI보임)
         context = browser.new_context()
         page = context.new_page()
         
@@ -93,7 +86,6 @@ def getScraping():
         modal_content = pageLocator.inner_text()
         if not modal_content:
             log("데이터가 존재하지 않습니다.")
-            return
         else:
             # 있으면 최소 1줄이라는거니까 첫 번째 tr에 클릭이벤트 실행하면 될듯?
             page.locator("#jsGrid__finder_stkisu0_0 > tbody > tr:nth-child(1)").click()
@@ -106,50 +98,75 @@ def getScraping():
             stocksData = page.locator("#jsMdiContent > div > div.CI-GRID-AREA.CI-GRID-ON-WINDOWS > div.CI-GRID-WRAPPER > div.CI-GRID-MAIN-WRAPPER > div.CI-GRID-BODY-WRAPPER > div > div > table > tbody > tr")
             stockDataCount = stocksData.count()
             scrapingDatas = {"data":stocksData, "count":stockDataCount}
-            stockDate, stockPrice = scrapingDataProcess(scrapingDatas)
-        return stockDate, stockPrice
+            stockDate, stockPrice, stockHiPrice, stockLoPrice, stockStPrice, stockResult = scrapingDataProcess(scrapingDatas)
+        return stockDate, stockPrice, stockHiPrice, stockLoPrice, stockStPrice, stockResult
 
 def scrapingDataProcess(scrapingDatas):
-    stockDate = []
-    stockPrice = []
+    log("scrapingDataProcess")
+    stockDate, stockPrice, stockHiPrice, stockLoPrice, stockStPrice, stockResult = [], [], [], [], [], []
+
     for i in range(scrapingDatas["count"]):
         item = scrapingDatas["data"].nth(i)
-        stockDate.append(item.locator("td[data-name='TRD_DD']").inner_text())
-        stockPrice.append(int(item.locator("td[data-name='TDD_CLSPRC']").inner_text().replace(",", "")))
-        # log(item.locator("td[data-name='TRD_DD']").inner_text()) # 일자
-        # log(item.locator("td[data-name='TDD_CLSPRC']").inner_text()) # 가격
+        stockDate.append(item.locator("td[data-name='TRD_DD']").inner_text()) # 일자
+        stockPrice.append(int(item.locator("td[data-name='TDD_CLSPRC']").inner_text().replace(",", "")))    # 가격
+        stockHiPrice.append(int(item.locator("td[data-name='TDD_HGPRC']").inner_text().replace(",", "")))   # 고가
+        stockLoPrice.append(int(item.locator("td[data-name='TDD_LWPRC']").inner_text().replace(",", "")))   # 저가
+        stockStPrice.append(int(item.locator("td[data-name='TDD_OPNPRC']").inner_text().replace(",", "")))  # 시가
+
+        if stockPrice[i] > stockStPrice[i]:
+            stockResult.append('r')
+        elif stockPrice[i] < stockStPrice[i]:
+            stockResult.append('b')
+        else:
+            stockResult.append('g')
         # log(item.locator("td[data-name='CMPPREVDD_PRC'] > span").inner_text()) # 등락가
         # log(item.locator("td[data-name='FLUC_RT'] > span").inner_text()) # 등락폭
-        # log(item.locator("td[data-name='TDD_OPNPRC']").inner_text()) # 시가
-        # log(item.locator("td[data-name='TDD_HGPRC']").inner_text()) # 고가
-        # log(item.locator("td[data-name='TDD_LWPRC']").inner_text()) # 저가
         # log(item.locator("td[data-name='ACC_TRDVOL']").inner_text()) # 거래량
         # log(item.locator("td[data-name='ACC_TRDVAL']").inner_text()) # 거래대금
         # log(item.locator("td[data-name='MKTCAP']").inner_text()) # 시가총액
         # log(item.locator("td[data-name='LIST_SHRS']").inner_text()) # 상장주식수
-    return stockDate, stockPrice
+    return stockDate, stockPrice, stockHiPrice, stockLoPrice, stockStPrice, stockResult
 
-def drawScapringData(stockDate, stockPrice, standardPrice):
+def drawScapringData(stockDate, stockPrice, stockStPrice, stockHiPrice, stockLoPrice, standardPrice, stockResult):
+    log("drawScapringData")
     # stockSeries = pandas.Series(stockPrice, index=stockDate)
     stockDataFrame = pandas.DataFrame()
     stockDataFrame["일자"] = pandas.to_datetime(stockDate, format="%Y/%m/%d")
+    stockDataFrame["시가"] = stockStPrice
     stockDataFrame["종가"] = stockPrice
+    stockDataFrame["고가"] = stockHiPrice
+    stockDataFrame["저가"] = stockLoPrice
+    stockDataFrame["결과"] = stockResult
     stockDataFrame.sort_values(['일자','종가'], ascending=False)
     # stockDataFrame.sort_values(['일자'], ascending=True)
     # log(stockSeries)
     log(stockDataFrame)
+
+    # 종가 > 시가 => 상승 : 빨간색
+    # 종가 < 시가 => 하락 : 파란색
     plt.figure(figsize=(12, 6))
     global searchTxt
     plt.title(searchTxt)
     standardLine = plt.axhline(y=int(standardPrice), color='r', linestyle='-', label='Horizontal Line')
-    priceLine, = plt.plot(stockDataFrame['일자'], stockDataFrame['종가'], marker='o')
-    plt.legend(handles=[standardLine, priceLine], labels=['구매가격', '종가'])
-    plt.show()
+    priceLine, = plt.plot(stockDataFrame['일자'], stockDataFrame['종가'], color='b', marker='o')
+    stPriceLine, = plt.plot(stockDataFrame['일자'], stockDataFrame["시가"], marker='o', linestyle='')
+
+    # 값A와 값B의 점들을 서로 연결하는 선을 추가
+    for i in range(len(stockDataFrame['일자'])):
+        plt.plot([stockDataFrame['일자'][i], stockDataFrame['일자'][i]], [stockDataFrame['저가'][i], stockDataFrame['고가'][i]], color=stockDataFrame['결과'][i], linestyle='-') # 저가와 고가 사이의 선
+        plt.plot([stockDataFrame['일자'][i], stockDataFrame['일자'][i]], [stockDataFrame['고가'][i], stockDataFrame['고가'][i]], color=stockDataFrame['결과'][i], marker='_', linestyle='-') # 고가
+        plt.plot([stockDataFrame['일자'][i], stockDataFrame['일자'][i]], [stockDataFrame['저가'][i], stockDataFrame['저가'][i]], color=stockDataFrame['결과'][i], marker='_', linestyle='-') # 저가
+
+    plt.legend(handles=[standardLine, stPriceLine, priceLine], labels=['구매가격', '시가', '종가'])
+    # plt.show() # 해당 함수를 사용하면 figure라는 이미지 새 창이 뜬다.
     # sns.boxplot(x='일자', y='종가', data = stockDataFrame) # seaborn
     # stockDataFrame.plot()
-
+    
     buf = BytesIO()
     plt.savefig(buf, format='png')
     buf.seek(0)
 
-    return HttpResponse(buf.read(), content_type='image/png')
+    image_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+    
+    # JSON 응답으로 반환
+    return JsonResponse({"resData": image_base64})
