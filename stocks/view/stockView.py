@@ -58,8 +58,8 @@ def getScraping():
         stockDate, stockPrice, stockHiPrice, stockLoPrice, stockStPrice, stockResult = [], [], [], [], [], []
         # 브라우저를 headless 모드로 실행
         # browser = p.chromium.launch()  # 백단실행
-        # browser = p.chromium.launch(headless=True)  # headless=True : 백그라운드 실행, headless=False : 포어그라운드 실행(UI보임)
-        browser = p.chromium.launch(headless=False)  # headless=True : 백그라운드 실행, headless=False : 포어그라운드 실행(UI보임)
+        browser = p.chromium.launch(headless=True)  # headless=True : 백그라운드 실행, headless=False : 포어그라운드 실행(UI보임)
+        # browser = p.chromium.launch(headless=False)  # headless=True : 백그라운드 실행, headless=False : 포어그라운드 실행(UI보임)
         context = browser.new_context()
         page = context.new_page()
         
